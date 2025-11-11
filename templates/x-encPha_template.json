@@ -27,9 +27,10 @@
     -0.369825
   ],
   "SOPClassUID": "1.2.840.10008.5.1.4.1.1.4",
-  "StudyDate": "19990101",
+  "StudyDate": "19000101",
   "file_meta": {
     "TransferSyntaxUID": "1.2.840.10008.1.2.1"
   }
 
 }
+
