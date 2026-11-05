@@ -6,7 +6,7 @@ from models.deformation_model import AnalyticalF, compute_deformation_mapping
 from utils.displacement_utils import Microstructure
 import pandas as pd
 from utils.coordinate_utils import cart2pol
-from config import OPT_BETA
+from config import OPT_BETA, TARGET_J, WEIGHT_J, TARGET_STRAIN_NAMES
 def target_strain_error(a, Rendo, Repi, Zbot, Ztop, thetaEndo, thetaMid, thetaEpi, TargetStrains, Weights, Phi, DebugFlag):
     """
     Computes the squared error between the calculated strain and target strain for given parameters.
@@ -24,39 +24,59 @@ def target_strain_error(a, Rendo, Repi, Zbot, Ztop, thetaEndo, thetaMid, thetaEp
     Returns:
         float: The total weighted error between computed and target strains.
     """
-    error = 0.0
-    NsamplePointsR = 2
-    NsamplePointsZ = 3
+    if len(TargetStrains) != len(TARGET_STRAIN_NAMES):
+        raise ValueError(
+            f"Expected targets {TARGET_STRAIN_NAMES}, got {len(TargetStrains)} values."
+        )
+    if len(Weights) != len(TargetStrains):
+        raise ValueError("Weights and target strains must have the same length.")
 
-    R = np.linspace(Rendo, Repi, NsamplePointsR)
-    Z = np.linspace(Zbot, Ztop, NsamplePointsZ)
+    Zmid = 0.5 * (Zbot + Ztop)
     eR = np.array([np.cos(Phi), np.sin(Phi), 0.0])
     eT = np.array([-np.sin(Phi), np.cos(Phi), 0.0])
-    # eT = np.array([np.sin(Phi), -np.cos(Phi), 0.0])
     eZ = np.array([0.0, 0.0, 1.0])
 
-    # Compute error over sample points
-    for i in range(NsamplePointsR):
-        for j in range(NsamplePointsZ):
-            Fan = AnalyticalF(Phi, R[i], Z[j], Zbot, Ztop, a)
-            Can = Fan.T @ Fan
+    def strains_at_radius(radius):
+        Fan = AnalyticalF(
+            Phi, radius, Zmid, Zbot, Ztop, a,
+            Rinner=Rendo, Router=Repi
+        )
+        Ean = 0.5 * (Fan.T @ Fan - np.eye(3))
+        fiber = Microstructure(
+            thetaEndo, thetaMid, thetaEpi,
+            Rendo, Repi, radius, eR, eT, DebugFlag
+        )[:3]
+        return np.array([
+            eT.T @ Ean @ eT,       # ECC
+            eZ.T @ Ean @ eZ,       # ELL
+            eR.T @ Ean @ eR,       # ERR
+            eT.T @ Ean @ eZ,       # ECL
+            eT.T @ Ean @ eR,       # ECR
+            eZ.T @ Ean @ eR,       # ELR
+            fiber @ Ean @ fiber.T, # EFF
+            np.linalg.det(Fan),     # J
+        ])
 
-            fiber = Microstructure(thetaEndo, thetaMid, thetaEpi, Rendo, Repi, R[i], eR, eT, DebugFlag)
-            
-            J = np.linalg.det(Fan)
-            ELL = 0.5 * (eZ.T @ Can @ eZ - 1.0)
-            ECC = 0.5 * (eT.T @ Can @ eT - 1.0)
-            ERR = 0.5 * (eR.T @ Can @ eR - 1.0)
-            EFF = 0.5 * (fiber[:3] @ Can @ fiber[:3].T - 1.0)
-            # EFF = 0.5 * (fiber[:3].T @ Can @ fiber[:3] - 1.0)
-            
-            error += Weights[0] * (J - TargetStrains[0])**2 \
-                     + Weights[1] * (ELL - TargetStrains[1])**2 \
-                     + Weights[2 + i] * (ECC - TargetStrains[2 + i])**2 \
-                     + Weights[4 + i] * (ERR - TargetStrains[4 + i])**2 \
-                     + Weights[6] * (EFF - TargetStrains[6])**2
+    inner = strains_at_radius(Rendo)
+    outer = strains_at_radius(Repi)
+    wall_mean = 0.5 * (inner + outer)
 
-    return error
+    # One residual per named target. Inner/outer normal strains use their
+    # corresponding wall; shared targets use the two-wall mean.
+    calculated = np.array([
+        inner[0],     # ECCi
+        outer[0],     # ECCo
+        wall_mean[1], # ELL
+        inner[2],     # ERRi
+        outer[2],     # ERRo
+        wall_mean[3], # ECL
+        wall_mean[4], # ECR
+        wall_mean[5], # ELR
+        wall_mean[6], # EFF
+    ])
+    strain_error = np.sum(Weights * (calculated - TargetStrains)**2)
+    jacobian_error = WEIGHT_J * (wall_mean[7] - TARGET_J)**2
+    return strain_error + jacobian_error
 
 def OptimizeDisp(Rendo, Repi, Zbot, Ztop, thetaEndo, thetaMid, thetaEpi, TargetStrains, Weights, DebugFlag):
     """
@@ -77,7 +97,7 @@ def OptimizeDisp(Rendo, Repi, Zbot, Ztop, thetaEndo, thetaMid, thetaEpi, TargetS
 
     # Initial guess for deformation coefficients
     if OPT_BETA:
-        a0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
+        a0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     else:
         a0 = np.array([0.0, 0.0, 0.0, 0.0])
 
@@ -114,8 +134,7 @@ def OptimizeDisp(Rendo, Repi, Zbot, Ztop, thetaEndo, thetaMid, thetaEpi, TargetS
         print(f'Function Value: {result.fun}')
         print(f'Exit Flag: {result.status}')
 
-        # print('                 J        ELL       ECC       ERR       EFF')
-        columns = ['J', 'ELL', 'ECC', 'ERR', 'EFF']
+        columns = ['J', 'ECC', 'ELL', 'ERR', 'ECL', 'ECR', 'ELR', 'EFF']
         df = pd.DataFrame(columns=columns)
 
         # Analyze strain values
@@ -132,22 +151,30 @@ def OptimizeDisp(Rendo, Repi, Zbot, Ztop, thetaEndo, thetaMid, thetaEpi, TargetS
       
         for i in range(NsamplePointsR):
             for j in range(NsamplePointsZ):
-                Fan = AnalyticalF(Phi, R[i], Z[j], Zbot, Ztop, a_final)
+                Fan = AnalyticalF(
+                    Phi, R[i], Z[j], Zbot, Ztop, a_final,
+                    Rinner=Rendo, Router=Repi
+                )
                 #print(f'Fan={Fan}')
                 C = np.transpose(Fan) @ Fan
 
                 J = np.linalg.det(Fan)
                 #print(J)
-                ELL = 0.5*(np.transpose(eZ) @ C @ eZ - 1.0)
-                ECC = 0.5*(np.transpose(eT) @ C @ eT - 1.0)
-                ERR = 0.5*(np.transpose(eR) @ C @ eR - 1.0)
+                E = 0.5 * (C - np.eye(3))
+                ECC = np.transpose(eT) @ E @ eT
+                ELL = np.transpose(eZ) @ E @ eZ
+                ERR = np.transpose(eR) @ E @ eR
+                ECL = np.transpose(eT) @ E @ eZ
+                ECR = np.transpose(eT) @ E @ eR
+                ELR = np.transpose(eZ) @ E @ eR
                 fiber = Microstructure(thetaEndo, thetaMid, thetaEpi, Rendo, Repi, R[i], eR, eT, DebugFlag)
-                EFF = 0.5*(np.dot(fiber[0:3], np.dot(C, fiber[0:3].T)) - 1.0)
-                # EFF = 0.5*(np.dot(fiber[0:3].T, np.dot(C, fiber[0:3])) - 1.0)
+                EFF = fiber[0:3] @ E @ fiber[0:3].T
 
 
                 #add row to dataframe
-                df.loc[Location[(i*NsamplePointsZ)+j]] = [J, ELL, ECC, ERR, EFF]
+                df.loc[Location[(i*NsamplePointsZ)+j]] = [
+                    J, ECC, ELL, ERR, ECL, ECR, ELR, EFF
+                ]
                 
         print(df)
         l_over_L = 1+a_final[3]

@@ -18,13 +18,21 @@ def eulerian_disp(x, Zbot, Ztop, a):
     tol = 1.0e-8
     if np.linalg.norm(a) > tol:
         Xref = np.zeros(3)
-        Xref[2] = x[2] / (1 + a[4])
+        from config import R_ENDO, R_EPI
+
+        Xref[2] = x[2] / (1 + a[3])
 
         theta = np.arctan2(x[1], x[0])
         rho = np.sqrt(x[0]**2 + x[1]**2)
 
-        Theta = theta - a[3] * (x[2] / (1 + a[4]) - Zbot) / (Ztop - Zbot)
-        R = (-(1 + a[1]) + np.sqrt((1 + a[1])**2 - 4 * a[2] * (a[0] - rho))) / (2 * a[2])
+        if abs(a[2]) < tol:
+            R = (rho - a[0]) / (1 + a[1])
+        else:
+            R = (-(1 + a[1]) + np.sqrt((1 + a[1])**2 - 4 * a[2] * (a[0] - rho))) / (2 * a[2])
+
+        axial_position = (Xref[2] - Zbot) / (Ztop - Zbot)
+        radial_position = (R - R_EPI) / (R_ENDO - R_EPI)
+        Theta = theta - a[4] * axial_position - a[5] * radial_position
 
         Xref[0] = R * np.cos(Theta)
         Xref[1] = R * np.sin(Theta)

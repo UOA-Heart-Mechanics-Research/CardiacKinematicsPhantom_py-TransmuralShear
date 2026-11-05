@@ -26,9 +26,9 @@ Z_BOTTOM = 0.0 # Bottom of the cylindrical phantom in mm
 Z_TOP = 40.0   # Top of the cylindrical phantom in mm
 
 # Model-based Myofiber Orientation Angles (in radians)
-THETA_ENDO = 70.0 * np.pi / 180.0  
-THETA_MID = -6.0 * np.pi / 180.0   
-THETA_EPI = -42.0 * np.pi / 180.0 
+THETA_ENDO = 37.0 * np.pi / 180.0
+THETA_MID = -9.0 * np.pi / 180.0
+THETA_EPI = -45.0 * np.pi / 180.0
 
 OPT_BETA = 1            # 1 -> minimize parameters to compute torsion; 0 -> fixed torsion; 
 BETA_MAX = 0*np.pi/180  # [rad] Max torsion - Used if OptBeta = 0
@@ -37,12 +37,19 @@ BETA_MAX = 0*np.pi/180  # [rad] Max torsion - Used if OptBeta = 0
 # Cardiac Motion Parameters (Displacement Coefficients)
 COMPUTE_PHANTOM = 1     # Set COMPUTE_PHANTOM to 1 if you want to recompute the parameters, otherwise set to 0 to use predefined values
 SAVE_PHANTOM_VTK = 1    # Set to 1 to save the phantom geometry as a VTK and VTU file
-AFINAL = np.array([-23.071009693097647, 0.9241307063697876, -0.009932012582840183, -0.11432827216021674, 2.2638065774919567])  # Predefined values if COMPUTE_PHANTOM is 0
+AFINAL = np.array([-19.956599504990017, 0.6706658349534422, -0.005961257950829989, -0.15484769214410793, 0.11767513675737254, -0.043322673977714145])  # Predefined values if COMPUTE_PHANTOM is 0
 
 
-# Target Strains and Weights for Optimization
-TARGET_STRAINS = np.array([1.0, -0.15, -0.18, -0.12, 0.4, 0.2, -0.15]) # Target values (J, ELL, ECC_endo, ECC_epi, ERR_endo, ERR_epi, EFF)
-WEIGHTS = np.array([0.5, 0.5, 0.5, 1.0, 0.1, 0.1, 1.0])  # Weights for the optimization (J, ELL, ECC_endo, ECC_epi, ERR_endo, ERR_epi, EFF)
+# Target strains and weights for optimization. Shears are tensor shear strains,
+# not engineering shear strains. "i" and "o" denote inner and outer wall.
+TARGET_STRAIN_NAMES = ('ECCi', 'ECCo', 'ELL', 'ERRi', 'ERRo', 'ECL', 'ECR', 'ELR', 'EFF')
+TARGET_STRAINS = np.array([-0.20, -0.16, -0.15, 0.45, 0.30, 0.035, 0.039, 0.03, -0.15])
+WEIGHTS = np.ones(len(TARGET_STRAINS))
+
+# J is retained as an optional objective term, but a zero weight removes the
+# incompressibility constraint from the optimization.
+TARGET_J = 1.0
+WEIGHT_J = 0.0
 
 
 # Time Steps for Cardiac Cycle (Defines the variation of displacement magnitude over time)
@@ -88,4 +95,3 @@ CELL_SCALARS_NAME = ['Magnitude', 'Phase_X', 'Phase_Y', 'Phase_Z']  # Scalar nam
 # Mesh and Phantom Parameters
 PHANTOM_MESH_SIZE = 1.0    # Phantom mesh size for VTK representation (unused if NPOINT_Z, NPOINT_R, NPOINT_C are set)
 N_POINTS_PER_VOXEL = SAMPLE_X * SAMPLE_Y * SAMPLE_Z     # Total sample points per voxel for averaging phase data
-

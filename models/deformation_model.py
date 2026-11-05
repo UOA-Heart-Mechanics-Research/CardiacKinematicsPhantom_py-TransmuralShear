@@ -2,18 +2,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
 try:
-    from CardiacKinematicsPhantom_python.utils.vtk_utils import plot_to_vtk
     from CardiacKinematicsPhantom_python.utils.displacement_utils import ComputeInvariants, Microstructure
     from CardiacKinematicsPhantom_python.utils.coordinate_utils import cart2pol
-    from CardiacKinematicsPhantom_python.config import OPT_BETA, BETA_MAX
+    from CardiacKinematicsPhantom_python.config import OPT_BETA, BETA_MAX, R_ENDO, R_EPI
 except:
-    from utils.vtk_utils import plot_to_vtk
     from utils.displacement_utils import ComputeInvariants, Microstructure
     from utils.coordinate_utils import cart2pol
-    from config import OPT_BETA, BETA_MAX
+    from config import OPT_BETA, BETA_MAX, R_ENDO, R_EPI
 import os 
 
-def compute_deformation_mapping(Phi, R, Z, Zbot, Ztop, a, cartesian=False):
+def compute_deformation_mapping(
+    Phi, R, Z, Zbot, Ztop, a, cartesian=False,
+    Rinner=R_ENDO, Router=R_EPI, beta=BETA_MAX
+):
     """
     Computes the deformation mapping for a cylindrical point based on given coefficients.
 
@@ -28,24 +29,34 @@ def compute_deformation_mapping(Phi, R, Z, Zbot, Ztop, a, cartesian=False):
     
     Returns:
         tuple: Deformed coordinates (r, phi, z) in cylindrical coordinates or (x, y, z) in Cartesian.
+
+    For OPT_BETA=1, the deformed angle is
+        t = Phi + a4*(Z-Zbot)/(Ztop-Zbot)
+                + a5*(R-Router)/(Rinner-Router).
     """
     r = a[0] + (1 + a[1]) * R + a[2] * R**2
     if OPT_BETA:
-        t = a[4] * (Z - Zbot) / (Ztop - Zbot)
+        if len(a) < 6:
+            raise ValueError("The radial-torsion model requires six coefficients (a0...a5).")
+        axial_position = (Z - Zbot) / (Ztop - Zbot)
+        radial_position = (R - Router) / (Rinner - Router)
+        t = Phi + a[4] * axial_position + a[5] * radial_position
     else:
-        t = 0.0
+        t = Phi + beta * (Z - Zbot) / (Ztop - Zbot)
 
     z = Z + a[3] * Z
 
     if cartesian:
-        xa = r * np.cos(Phi) - t * np.sin(Phi)
-        ya = r * np.sin(Phi) + t * np.cos(Phi)
+        xa = r * np.cos(t)
+        ya = r * np.sin(t)
         za = z
         return xa, ya, za
     else:   
         return r, t, z
 
-def compute_Fp(R, Z, Zbot, Ztop, a):
+def compute_Fp(
+    R, Z, Zbot, Ztop, a, Rinner=R_ENDO, Router=R_EPI, beta=BETA_MAX
+):
     """
     Constructs the in-plane deformation gradient matrix Fp.
 
@@ -60,29 +71,25 @@ def compute_Fp(R, Z, Zbot, Ztop, a):
     r = a[0] + (1+a[1])*R + a[2]*R**2
 
     if OPT_BETA:
-        t = a[4]*(Z-Zbot) / (Ztop-Zbot)
+        if len(a) < 6:
+            raise ValueError("The radial-torsion model requires six coefficients (a0...a5).")
+        dt_dR = a[5] / (Rinner - Router)
         dt_dZ = a[4] / (Ztop-Zbot)
     else:
-        t = 0.0
-        dt_dZ = 0.0
+        dt_dR = 0.0
+        dt_dZ = beta / (Ztop-Zbot)
 
     dr_dR = 1 + a[1] + 2*a[2]*R
-    dr_dT = 0.0
-    dr_dZ = 0.0
-
-    dt_dR = 0.0
-    dt_dT = 0.0
-
-    dz_dR = 0.0
-    dz_dT = 0.0
     dz_dZ = 1.0 + a[3] 
 
-    Fp = np.array([[dr_dR,  (dr_dT - t)/R,  dr_dZ], 
-                   [dt_dR,	(dt_dT + r)/R,  dt_dZ], 
-                   [dz_dR,	(dz_dT)/R,      dz_dZ]])
+    # Rows use the deformed (r, theta, z) basis and columns use the reference
+    # (R, Theta, Z) basis. Angular derivatives acquire a factor of r.
+    Fp = np.array([[dr_dR,       0.0,       0.0],
+                   [r * dt_dR,   r / R, r * dt_dZ],
+                   [0.0,         0.0,     dz_dZ]])
     return Fp
 
-def compute_Fan(Fp, R, Phi, Z, Zbot, Ztop, beta):
+def compute_Fan(Fp, Phi, theta):
     """
     Computes the full deformation gradient tensor in Cartesian coordinates.
 
@@ -92,29 +99,22 @@ def compute_Fan(Fp, R, Phi, Z, Zbot, Ztop, beta):
     Returns:
         np.ndarray: Full deformation gradient tensor Fan.
     """
-    eR = np.array([[np.cos(Phi)], [np.sin(Phi)], [0.0]])
-    eT = np.array([[-np.sin(Phi)], [np.cos(Phi)], [0.0]])
-    eZ = np.array([[0.0], [0.0], [1.0]])
+    reference_basis = np.array([
+        [np.cos(Phi), -np.sin(Phi), 0.0],
+        [np.sin(Phi),  np.cos(Phi), 0.0],
+        [0.0,          0.0,         1.0],
+    ])
+    deformed_basis = np.array([
+        [np.cos(theta), -np.sin(theta), 0.0],
+        [np.sin(theta),  np.cos(theta), 0.0],
+        [0.0,            0.0,           1.0],
+    ])
+    return deformed_basis @ Fp @ reference_basis.T
 
-    # Construct Fan using tensor products
-    Fan = Fp[0,0] * eR*eR.T + Fp[0,1] * eR*eT.T + Fp[0,2] * eR*eZ.T + \
-          Fp[1,0] * eT*eR.T + Fp[1,1] * eT*eT.T + Fp[1,2] * eT*eZ.T + \
-          Fp[2,0] * eZ*eR.T + Fp[2,1] * eZ*eT.T + Fp[2,2] * eZ*eZ.T
-    
-    if OPT_BETA == 0:
-        beta = beta * (Z-Zbot) / (Ztop-Zbot)
-        dbetadR = 0
-        dbetadZ = beta / (Ztop-Zbot)
-
-        Frot = [[np.cos(beta)-R*np.sin(Phi+beta)*np.cos(Phi)*dbetadR, -np.sin(beta)-R*np.sin(Phi+beta)*np.sin(Phi)*dbetadR, -R*np.sin(Phi+beta)*dbetadZ],
-                [np.sin(beta)+R*np.cos(Phi+beta)*np.cos(Phi)*dbetadR,  np.cos(beta)+R*np.cos(Phi+beta)*np.sin(Phi)*dbetadR,  R*np.cos(Phi+beta)*dbetadZ],
-                [    0.0,                                        0.0,                                          1.0]]
-       
-        Fan = Fan @ Frot
-        
-    return Fan
-
-def AnalyticalF(Phi, R, Z, Zbot, Ztop, a, beta = BETA_MAX):
+def AnalyticalF(
+    Phi, R, Z, Zbot, Ztop, a, beta=BETA_MAX,
+    Rinner=R_ENDO, Router=R_EPI
+):
     """
     High-level function that calculates the full gradient tensor.
 
@@ -126,8 +126,12 @@ def AnalyticalF(Phi, R, Z, Zbot, Ztop, a, beta = BETA_MAX):
     Returns:
         tuple: Deformation gradient tensor Fan.
     """
-    Fp = compute_Fp(R, Z, Zbot, Ztop, a)
-    Fan = compute_Fan(Fp, R, Phi, Z, Zbot, Ztop, beta)
+    Fp = compute_Fp(R, Z, Zbot, Ztop, a, Rinner, Router, beta)
+    _, theta, _ = compute_deformation_mapping(
+        Phi, R, Z, Zbot, Ztop, a, cartesian=False,
+        Rinner=Rinner, Router=Router, beta=beta
+    )
+    Fan = compute_Fan(Fp, Phi, theta)
 
     return Fan
 
@@ -146,6 +150,7 @@ def AnalyticalPhantom(afinal, Rendo, Repi, Zbot, Ztop, h, NpointZ, NpointR, Npoi
         DebugFlag (int): Enables debugging.
     """
     from utils.mesh_utils import phantom_hexa_mesh
+    from utils.vtk_utils import plot_to_vtk
 
     # Generate phantom mesh
     nodesCart, nodesPolar, conn = phantom_hexa_mesh(Rendo, Repi, Zbot, Ztop, h, NpointZ, NpointR, NpointC)
@@ -164,8 +169,14 @@ def AnalyticalPhantom(afinal, Rendo, Repi, Zbot, Ztop, h, NpointZ, NpointR, Npoi
 
         # Calculate deformed coordinates at each time step
         for i, node in enumerate(nodesPolar):
-            Fan = AnalyticalF(node[0], node[1], node[2], Zbot, Ztop, a_s)
-            xa, ya, za = compute_deformation_mapping(node[0], node[1], node[2], Zbot, Ztop, a_s, cartesian=True)
+            Fan = AnalyticalF(
+                node[0], node[1], node[2], Zbot, Ztop, a_s,
+                Rinner=Rendo, Router=Repi
+            )
+            xa, ya, za = compute_deformation_mapping(
+                node[0], node[1], node[2], Zbot, Ztop, a_s,
+                cartesian=True, Rinner=Rendo, Router=Repi
+            )
             xt[i, :] = [xa, ya, za]
 
         # Calculate strain invariants and update fiber directions
@@ -182,7 +193,10 @@ def AnalyticalPhantom(afinal, Rendo, Repi, Zbot, Ztop, h, NpointZ, NpointR, Npoi
             Rvec = np.array([ElBar[0], ElBar[1], 0.0]) / np.linalg.norm([ElBar[0], ElBar[1], 0.0])
 
             fiber = Microstructure(thetaEndo, thetaMid, thetaEpi, Rendo, Repi, rqp, Rvec, Cvec, DebugFlag)
-            Fan = AnalyticalF(ThetaPol, rqp, Zpol, Zbot, Ztop, afinal * alpha)
+            Fan = AnalyticalF(
+                ThetaPol, rqp, Zpol, Zbot, Ztop, afinal * alpha,
+                Rinner=Rendo, Router=Repi
+            )
             CellScalars[e, :NumInv], _ = ComputeInvariants(Fan, fiber, Lvec, Cvec, Rvec)
             Eff_an[s, e] = CellScalars[e, 4]
             J_an[s, e] = np.sqrt(CellScalars[e, 2])
