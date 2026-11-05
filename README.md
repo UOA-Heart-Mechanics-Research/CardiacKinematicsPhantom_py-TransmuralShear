@@ -6,6 +6,11 @@ Python and extended version of the mid-ventricular cardiac kinematics phantom av
 
 This repository provides a tool for generating and exporting synthetic cardiac DENSE (Displacement Encoding with Stimulated Echoes) MRI phantoms. It is highly configurable and features a robust, built-in DICOM exporter that produces ready-to-use DENSE series (AveMag, x/y/z phases), making it ideal for testing DENSE analysis pipelines and DICOM viewers.
 
+The optimized analytical motion uses six coefficients. The sixth coefficient
+adds an independent transmural contribution to the deformed cylindrical angle,
+so all three analytical shear strains can be nonzero. The Jacobian objective
+weight is zero by default, so incompressibility is not imposed.
+
 ---
 
 ## ✨ Features
@@ -48,6 +53,22 @@ Execute the main script to generate the phantom and all associated output files.
 python main.py
 ```
 After the script finishes, all outputs will be located in the `results/` directory.
+
+### Plot analytical ground-truth strain only
+
+To plot the six Green--Lagrange strain components directly from the analytical
+deformation gradient, without DENSE encoding, voxel averaging, or noise, run:
+
+```bash
+python plot_analytic_strain_gt.py
+```
+
+This writes peak-systolic maps, temporal plots, and peak-systolic transmural
+profiles for `ECC`, `ELL`, `ERR`, `ECL`, `ECR`, and `ELR` to
+`results/analytic_strain_gt/`. The shear values are tensor components, not
+engineering shear. By default the script uses `AFINAL` from `config.py`; pass
+`--coefficients results/a_final.json` to use parameters previously produced by
+the optimizer.
 
 ---
 
@@ -116,4 +137,3 @@ pip install -r requirements.txt
 ## 🔑 License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
-
