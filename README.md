@@ -1,3 +1,86 @@
+# CardiacKinematicsPhantom_py-TransmuralShear
+
+This is an extended version of the original CardiacKinematicsPhantom_py, adding non-zero transmural shear strain components ($E_{CR}$ and $E_{LR}$).
+
+The extension includes:
+* A change was made to the analytical equation 'theta' (the circumferential direction), adding radial dependence, and hence a sixth coefficient ($a_5$).
+* The additional coefficient was added in to the optimisation to target strain code.
+* Target strains were added for $E_{CL}$, $E_{CR}$ and $E_{LR}$.
+* Other target strains were restored to the original MATLAB phantom values.
+* All target strain weights were set to 1. Targets shared by both walls ($E_{LL}$, $E_{FF}$ and the shears) are matched at both the inner and outer wall, as in the original optimisation.
+* The Jacobian objective weight was set to zero by default, so incompressibility is not imposed.
+* The fibre angles were restored to the original MATLAB phantom values of 37°, −9° and −45° (endocardium, mid-wall, epicardium). 
+* The phantom height was changed from 40 mm to 38 mm, so that four 8 mm short-axis slices fit within the phantom at peak contraction.
+* A new script, `plot_analytic_strain_gt.py`, plots the analytical ground-truth strains without DENSE encoding, voxel averaging or noise.
+
+This results in a deformation field that gives rise to non-zero strains for all six Green Lagrange strain components.
+
+## Analytical deformation model
+
+The phantom is a thick-walled cylinder with reference (undeformed) cylindrical
+coordinates $(R, \Theta, Z)$, $R_{endo} \le R \le R_{epi}$ and
+$Z_{bot} \le Z \le Z_{top}$. Each material point maps to deformed coordinates
+$(r, \theta, z)$:
+
+$$
+\begin{aligned}
+r &= a_0 + (1 + a_1)\,R + a_2\,R^2 \\
+\theta &= \Theta + a_4\,\frac{Z - Z_{bot}}{Z_{top} - Z_{bot}} + a_5\,\frac{R - R_{epi}}{R_{endo} - R_{epi}} \\
+z &= (1 + a_3)\,Z
+\end{aligned}
+$$
+
+## Target strains
+
+| Target | Value | Weight | Source | Achieved at peak (endo / epi) |
+| --- | --- | --- | --- | --- |
+| $E_{CC,i}$ | −0.20 | 1 | Reverted to original MATLAB phantom; matches Zhong et al. (2010), mid-ventricular subendocardial layer (−0.20 ± 0.02) | −0.231 |
+| $E_{CC,o}$ | −0.16 | 1 | Reverted to original MATLAB phantom; matches Zhong et al. (2010), mid-ventricular subepicardial layer (−0.16 ± 0.02) | −0.096 |
+| $E_{LL}$ | −0.15 | 1 | Unchanged. Moore et al. (2000) equatorial mean −0.15 | −0.143 / −0.140 |
+| $E_{RR,i}$ | 0.45 | 1 | Reverted to original MATLAB phantom | 0.444 |
+| $E_{RR,o}$ | 0.30 | 1 | Reverted to original MATLAB phantom | 0.294 |
+| $E_{CL}$ | 0.035 | 1 | Mean of Moore et al. (2000), equatorial (0.035), and Young et al. (1994), mid-ventricle (0.035) | 0.022 / 0.045 |
+| $E_{CR}$ | 0.03875 | 1 | Mean of Moore et al. (2000), equatorial (0.0525), and Young et al. (1994), mid-ventricle (0.025) | 0.024 / 0.051 |
+| $E_{LR}$ | 0.03 | 1 | Mean of Moore et al. (2000), equatorial (0.0475), and Young et al. (1994), mid-ventricle (0.0125) | 0.002 / 0.006 |
+| $E_{FF}$ | −0.15 | 1 | Unchanged | −0.179 / −0.163 |
+| $J$ | 1.0 | 0 | Not imposed | 0.89 |
+
+Each shear value from a paper is the mean over its four regions (Moore:
+septal, anterior, lateral, inferior; Young: septal, posterior, lateral,
+anterior). Moore et al. report $E_{CR}$ and $E_{LR}$ as $E_{RC}$ and $E_{RL}$.
+
+Fibre angles are 37° (endocardium), −9° (mid-wall) and −45° (epicardium), reverted to the original MATLAB phantom.
+
+The undeformed height is 38 mm (`Z_TOP`). At peak contraction the phantom shortens to about 32 mm, so
+four 8 mm short-axis slices centred at $z$ = 4, 12, 20 and 28 mm lie within
+the myocardium throughout the cycle.
+
+The default coefficients (`AFINAL`) are:
+
+| $a_0$ | $a_1$ | $a_2$ | $a_3$ | $a_4$ | $a_5$ |
+| --- | --- | --- | --- | --- | --- |
+| −19.6603 | 0.66731 | −0.0058944 | −0.15735 | 0.12142 | −0.036340 |
+
+### References
+
+* Moore, C. C., Lugo-Olivieri, C. H., McVeigh, E. R., & Zerhouni, E. A. (2000). Three-dimensional systolic strain patterns in the normal human left ventricle: characterization with tagged MR imaging. *Radiology*, 214(2), 453–466.
+* Young, A. A., Kramer, C. M., Ferrari, V. A., Axel, L., & Reichek, N. (1994). Three-dimensional left ventricular deformation in hypertrophic cardiomyopathy. *Circulation*, 90(2), 854–867.
+* Zhong, X., Spottiswoode, B. S., Meyer, C. H., Kramer, C. M., & Epstein, F. H. (2010). Imaging three-dimensional myocardial mechanics using navigator-gated volumetric spiral cine DENSE MRI. *Magnetic Resonance in Medicine*, 64(4), 1089–1097. [doi: 10.1002/mrm.22503](https://doi.org/10.1002/mrm.22503)
+* Wang, V. Y., Casta, C., Zhu, Y.-M., Cowan, B. R., Croisille, P., Young, A. A., et al. (2016). Image-based investigation of human in vivo myofibre strain. *IEEE Transactions on Medical Imaging*, 35(11), 2486–2496.
+
+### For citation
+
+#### Results of the extension are published in: 
+<blockquote>WIP</blockquote>
+
+#### The original phantom was published in:
+<blockquote>Verzhbinsky, I. A., Perotti, L. E., Moulin, K., Cork, T. E., Loecher, M., & Ennis, D. B. (2020). Estimating Aggregate Cardiomyocyte Strain Using In Vivo Diffusion and Displacement Encoded MRI. IEEE Transactions on Medical Imaging, 39(3), 656–667. 
+
+[doi: 10.1109/TMI.2019.2933813](https://doi.org/10.1109/TMI.2019.2933813). </blockquote>
+
+---
+$\\[2cm]$
+
 # CardiacKinematicsPhantom_py : Synthetic DENSE MRI Generator (Analytical Phantom)
 Python and extended version of the mid-ventricular cardiac kinematics phantom available at: https://github.com/luigiemp/CardiacKinematicsPhantom
 
