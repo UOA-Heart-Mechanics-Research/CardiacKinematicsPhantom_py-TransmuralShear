@@ -24,9 +24,9 @@ $(r, \theta, z)$:
 
 $$
 \begin{aligned}
-r &= a_0 + (1 + a_1)\,R + a_2\,R^2 \\
-\theta &= \Theta + a_4\,\frac{Z - Z_{bot}}{Z_{top} - Z_{bot}} + a_5\,\frac{R - R_{epi}}{R_{endo} - R_{epi}} \\
-z &= (1 + a_3)\,Z
+r &= a_0 + (1 + a_1)R + a_2R^2 \\
+\theta &= \Theta + a_4\frac{Z - Z_{bot}}{Z_{top} - Z_{bot}} + a_5\frac{R - R_{epi}}{R_{endo} - R_{epi}} \\
+z &= (1 + a_3)Z
 \end{aligned}
 $$
 
@@ -44,10 +44,6 @@ $$
 | $E_{LR}$ | 0.03 | 1 | Mean of Moore et al. (2000), equatorial (0.0475), and Young et al. (1994), mid-ventricle (0.0125) | 0.002 / 0.006 |
 | $E_{FF}$ | −0.15 | 1 | Unchanged | −0.179 / −0.163 |
 | $J$ | 1.0 | 0 | Not imposed | 0.89 |
-
-Each shear value from a paper is the mean over its four regions (Moore:
-septal, anterior, lateral, inferior; Young: septal, posterior, lateral,
-anterior). Moore et al. report $E_{CR}$ and $E_{LR}$ as $E_{RC}$ and $E_{RL}$.
 
 Fibre angles are 37° (endocardium), −9° (mid-wall) and −45° (epicardium), reverted to the original MATLAB phantom.
 
