@@ -31,52 +31,52 @@ def target_strain_error(a, Rendo, Repi, Zbot, Ztop, thetaEndo, thetaMid, thetaEp
     if len(Weights) != len(TargetStrains):
         raise ValueError("Weights and target strains must have the same length.")
 
-    Zmid = 0.5 * (Zbot + Ztop)
+    # Sample the inner and outer walls at the bottom, middle and top of the
+    # phantom, as in the original MATLAB TargetStrain.m. Wall-specific targets
+    # (ECCi/ECCo, ERRi/ERRo) are compared at their own wall; shared targets
+    # (ELL, ECL, ECR, ELR, EFF) are compared at every sample point.
+    NsamplePointsR = 2
+    NsamplePointsZ = 3
+
+    R = np.linspace(Rendo, Repi, NsamplePointsR)
+    Z = np.linspace(Zbot, Ztop, NsamplePointsZ)
     eR = np.array([np.cos(Phi), np.sin(Phi), 0.0])
     eT = np.array([-np.sin(Phi), np.cos(Phi), 0.0])
     eZ = np.array([0.0, 0.0, 1.0])
 
-    def strains_at_radius(radius):
-        Fan = AnalyticalF(
-            Phi, radius, Zmid, Zbot, Ztop, a,
-            Rinner=Rendo, Router=Repi
-        )
-        Ean = 0.5 * (Fan.T @ Fan - np.eye(3))
+    error = 0.0
+    for i in range(NsamplePointsR):
         fiber = Microstructure(
             thetaEndo, thetaMid, thetaEpi,
-            Rendo, Repi, radius, eR, eT, DebugFlag
+            Rendo, Repi, R[i], eR, eT, DebugFlag
         )[:3]
-        return np.array([
-            eT.T @ Ean @ eT,       # ECC
-            eZ.T @ Ean @ eZ,       # ELL
-            eR.T @ Ean @ eR,       # ERR
-            eT.T @ Ean @ eZ,       # ECL
-            eT.T @ Ean @ eR,       # ECR
-            eZ.T @ Ean @ eR,       # ELR
-            fiber @ Ean @ fiber.T, # EFF
-            np.linalg.det(Fan),     # J
-        ])
+        for j in range(NsamplePointsZ):
+            Fan = AnalyticalF(
+                Phi, R[i], Z[j], Zbot, Ztop, a,
+                Rinner=Rendo, Router=Repi
+            )
+            Ean = 0.5 * (Fan.T @ Fan - np.eye(3))
 
-    inner = strains_at_radius(Rendo)
-    outer = strains_at_radius(Repi)
-    wall_mean = 0.5 * (inner + outer)
+            J = np.linalg.det(Fan)
+            ECC = eT.T @ Ean @ eT
+            ELL = eZ.T @ Ean @ eZ
+            ERR = eR.T @ Ean @ eR
+            ECL = eT.T @ Ean @ eZ
+            ECR = eT.T @ Ean @ eR
+            ELR = eZ.T @ Ean @ eR
+            EFF = fiber @ Ean @ fiber.T
 
-    # One residual per named target. Inner/outer normal strains use their
-    # corresponding wall; shared targets use the two-wall mean.
-    calculated = np.array([
-        inner[0],     # ECCi
-        outer[0],     # ECCo
-        wall_mean[1], # ELL
-        inner[2],     # ERRi
-        outer[2],     # ERRo
-        wall_mean[3], # ECL
-        wall_mean[4], # ECR
-        wall_mean[5], # ELR
-        wall_mean[6], # EFF
-    ])
-    strain_error = np.sum(Weights * (calculated - TargetStrains)**2)
-    jacobian_error = WEIGHT_J * (wall_mean[7] - TARGET_J)**2
-    return strain_error + jacobian_error
+            # Target order follows TARGET_STRAIN_NAMES; i = 0 is the inner wall.
+            error += Weights[0 + i] * (ECC - TargetStrains[0 + i])**2 \
+                   + Weights[2]     * (ELL - TargetStrains[2])**2 \
+                   + Weights[3 + i] * (ERR - TargetStrains[3 + i])**2 \
+                   + Weights[5]     * (ECL - TargetStrains[5])**2 \
+                   + Weights[6]     * (ECR - TargetStrains[6])**2 \
+                   + Weights[7]     * (ELR - TargetStrains[7])**2 \
+                   + Weights[8]     * (EFF - TargetStrains[8])**2 \
+                   + WEIGHT_J       * (J - TARGET_J)**2
+
+    return error
 
 def OptimizeDisp(Rendo, Repi, Zbot, Ztop, thetaEndo, thetaMid, thetaEpi, TargetStrains, Weights, DebugFlag):
     """

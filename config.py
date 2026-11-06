@@ -23,7 +23,7 @@ R_EPI = 35.0   # Epicardial radius in mm
 RMIN = 5.0     # Minimum radius to avoid singularities in displacement field
 
 Z_BOTTOM = 0.0 # Bottom of the cylindrical phantom in mm
-Z_TOP = 40.0   # Top of the cylindrical phantom in mm
+Z_TOP = 38.0   # Top of the cylindrical phantom in mm (shortens to ~32 mm at peak, filling four 8 mm slices at z = 4, 12, 20, 28)
 
 # Model-based Myofiber Orientation Angles (in radians)
 THETA_ENDO = 37.0 * np.pi / 180.0
@@ -37,13 +37,15 @@ BETA_MAX = 0*np.pi/180  # [rad] Max torsion - Used if OptBeta = 0
 # Cardiac Motion Parameters (Displacement Coefficients)
 COMPUTE_PHANTOM = 1     # Set COMPUTE_PHANTOM to 1 if you want to recompute the parameters, otherwise set to 0 to use predefined values
 SAVE_PHANTOM_VTK = 1    # Set to 1 to save the phantom geometry as a VTK and VTU file
-AFINAL = np.array([-19.956599504990017, 0.6706658349534422, -0.005961257950829989, -0.15484769214410793, 0.11767513675737254, -0.043322673977714145])  # Predefined values if COMPUTE_PHANTOM is 0
+AFINAL = np.array([-19.660282302570206, 0.6673134857325834, -0.005894384160182399, -0.15734976241731824, 0.12142141492532116, -0.03634028399959273])  # Predefined values if COMPUTE_PHANTOM is 0
 
 
 # Target strains and weights for optimization. Shears are tensor shear strains,
 # not engineering shear strains. "i" and "o" denote inner and outer wall.
+# Shared targets (ELL, ECL, ECR, ELR, EFF) are matched at both walls, so they
+# carry about twice the weight of the wall-specific ones.
 TARGET_STRAIN_NAMES = ('ECCi', 'ECCo', 'ELL', 'ERRi', 'ERRo', 'ECL', 'ECR', 'ELR', 'EFF')
-TARGET_STRAINS = np.array([-0.20, -0.16, -0.15, 0.45, 0.30, 0.035, 0.039, 0.03, -0.15])
+TARGET_STRAINS = np.array([-0.20, -0.16, -0.15, 0.45, 0.30, 0.035, 0.03875, 0.03, -0.15])
 WEIGHTS = np.ones(len(TARGET_STRAINS))
 
 # J is retained as an optional objective term, but a zero weight removes the
