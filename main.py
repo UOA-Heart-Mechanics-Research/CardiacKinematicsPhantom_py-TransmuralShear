@@ -261,7 +261,9 @@ def main():
                 sio.savemat(os.path.join(output_path_temp, f"mag_{s+1:02d}.mat"), {'magnitude_wN': magnitude_wN})
 
     # Save data as dicoms
-    save_dense_dicoms()     # Call the function to save dense dicoms from export_to_dicom.py (all default parameters are set in config.py)
+    for rep in range(REPS):
+        for snr_i in SNR:
+            save_dense_dicoms(snr_value=snr_i, z_position=ZCONST, rep=rep)
     print("DICOM files saved successfully.")
 
     # Print elapsed time
