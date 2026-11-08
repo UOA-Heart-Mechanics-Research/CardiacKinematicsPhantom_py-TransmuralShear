@@ -75,6 +75,9 @@ The default coefficients (`AFINAL`) are:
 [doi: 10.1109/TMI.2019.2933813](https://doi.org/10.1109/TMI.2019.2933813). </blockquote>
 
 ---
+<br>&nbsp;
+<br>&nbsp;
+<br>
 
 # CardiacKinematicsPhantom_py : Synthetic DENSE MRI Generator (Analytical Phantom)
 Python and extended version of the mid-ventricular cardiac kinematics phantom available at: https://github.com/luigiemp/CardiacKinematicsPhantom
