@@ -78,12 +78,12 @@ SAMPLE_Y = 2                 # Sample points per voxel in Y
 SAMPLE_Z = 3                 # Sample points per voxel in Z
 
 # Encoding Frequency 
-KE_X = 0.1
-KE_Y = 0.1
+KE_X = 0.08
+KE_Y = 0.08
 KE_Z = 0.08
 
 # Noise Parameters
-SNR =  [40]               # [10, 20, 40, np.inf ~ 1000]   # Signal-to-Noise Ratios for different noise levels
+SNR =  [30]                 # [10, 20, 40, np.inf ~ 1000]   # Signal-to-Noise Ratios for different noise levels
 REPS = 1                    # Number of repetitions per SNR level
 CHECK_SNR = True            # Set to True to check SNR levels in the generated data
 

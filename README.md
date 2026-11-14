@@ -11,6 +11,7 @@ The extension includes:
 * The Jacobian objective weight was set to zero by default, so incompressibility is not imposed.
 * The fibre angles were restored to the original MATLAB phantom values of 37°, −9° and −45° (endocardium, mid-wall, epicardium). 
 * The phantom height was changed from 40 mm to 38 mm, so that four 8 mm short-axis slices fit within the phantom at peak contraction.
+* All encoding frequencies were set to be consistent; 0.08.
 * A new script, `plot_analytic_strain_gt.py`, plots the analytical ground-truth strains without DENSE encoding, voxel averaging or noise.
 
 This results in a deformation field that gives rise to non-zero strains for all six Green Lagrange strain components.
